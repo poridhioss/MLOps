@@ -288,8 +288,6 @@ resource "aws_instance" "k3s_master" {
               EOF
   )
 
-  depends_on = [aws_instance.minio_instance]
-
   tags = {
     Name = "k3s-master"
     Role = "master"
