@@ -298,7 +298,7 @@ resource "aws_instance" "k3s_master" {
 
 # K3s worker instances
 resource "aws_instance" "k3s_workers" {
-  count         = 1
+  count         = 2
   ami           = "ami-0672fd5b9210aa093"
   instance_type = "t3.medium"
   subnet_id     = aws_subnet.public_subnet.id
