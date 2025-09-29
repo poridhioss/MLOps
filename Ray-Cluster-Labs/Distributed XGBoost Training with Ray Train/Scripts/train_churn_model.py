@@ -22,7 +22,7 @@ BUCKET_NAME = "ray-data"
 MODEL_OUTPUT_PATH = "models/churn_xgboost_model.pkl"
 
 # Processed data URL from Distributed Data Processing with Ray lab
-DATA_URL = "https://raw.githubusercontent.com/poridhioss/MLOps/refs/heads/main/Ray-Cluster-Labs/data/churned_customers.parquet"
+DATA_URL = "https://github.com/poridhioss/MLOps/raw/refs/heads/main/Ray-Cluster-Labs/Distributed%20XGBoost%20Training%20with%20Ray%20Train/processed-data/churned_customers.parquet"
 
 # Initialize Ray
 ray.init()
