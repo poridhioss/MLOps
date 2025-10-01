@@ -35,23 +35,23 @@ os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 # Processed data URL
-DATA_URL = "https://github.com/poridhioss/MLOps/raw/refs/heads/main/Ray-Cluster-Labs/Distributed%20XGBoost%20Training%20with%20Ray%20Train/processed-data/churned_customers.parquet"
+DATA_URL = "https://github.com/poridhioss/MLOps/raw/refs/heads/main/Ray-Cluster-Labs/Distributed%20XGBoost%20Training%20with%20Ray%20Train/processed-data/churned-customers.parquet"
 
 def load_data():
     """Download and prepare data"""
-    print("Downloading processed churn data...")
+    print("Downloading processed customer data...")
     urllib.request.urlretrieve(DATA_URL, "/tmp/churned_customers.parquet")
     df = pd.read_parquet("/tmp/churned_customers.parquet")
-    print(f"Loaded {len(df)} churned customer records")
+    print(f"Loaded {len(df)} customer records")
     return df
 
 def prepare_features(df):
-    """Prepare features for training"""
-    print("Preparing features...")
+    """Prepare features for churn prediction"""
+    print("Preparing features for churn prediction...")
     
-    # Define feature columns
-    feature_columns = ['SeniorCitizen', 'tenure', 'MonthlyCharges', 'TotalCharges',
-                      'AvgMonthlyCharges', 'IsHighValue']
+    # Use behavioral and demographic features only
+    # EXCLUDE TotalCharges and derived features to prevent data leakage
+    feature_columns = ['SeniorCitizen', 'tenure', 'MonthlyCharges']
     
     categorical_columns = ['gender', 'Partner', 'Dependents', 'PhoneService',
                           'MultipleLines', 'InternetService', 'OnlineSecurity',
@@ -70,10 +70,22 @@ def prepare_features(df):
             label_encoders[col] = le
             feature_columns.append(col)
     
-    # Create binary target variable
-    df_encoded['target'] = (df_encoded['TotalCharges'] > df_encoded['TotalCharges'].median()).astype(int)
+    # Use actual Churn column as target
+    if 'Churn' in df.columns:
+        if df['Churn'].dtype == 'object':
+            df_encoded['target'] = df['Churn'].map({'Yes': 1, 'No': 0})
+        else:
+            df_encoded['target'] = df['Churn'].astype(int)
+        print("✓ Using actual Churn column as target")
+    else:
+        raise ValueError("Churn column not found in dataset. Please use the updated preprocessing script.")
     
-    print(f"Prepared {len(feature_columns)} features")
+    print(f"✓ Prepared {len(feature_columns)} features")
+    print(f"✓ Target distribution: {df_encoded['target'].value_counts().to_dict()}")
+    
+    churn_rate = df_encoded['target'].mean()
+    print(f"✓ Churn rate: {churn_rate:.2%}")
+    
     return df_encoded[feature_columns + ['target']], label_encoders
 
 def evaluate_model(booster, X_test, y_test):
@@ -108,11 +120,12 @@ def evaluate_model(booster, X_test, y_test):
 def main():
     print("\n" + "="*60)
     print("Starting Distributed XGBoost Training with MLflow Tracking")
+    print("Churn Prediction Model")
     print("="*60 + "\n")
     
     # Initialize Ray
     ray.init()
-    print("Ray cluster initialized")
+    print("✓ Ray cluster initialized")
     
     # Configure S3 client for MinIO (boto3)
     s3_client = boto3.client(
@@ -123,7 +136,7 @@ def main():
         config=Config(signature_version='s3v4'),
         region_name='us-east-1'
     )
-    print("MinIO S3 client configured")
+    print("✓ MinIO S3 client configured")
     
     # Configure PyArrow S3 filesystem for Ray Train
     endpoint_host = MINIO_ENDPOINT.replace("http://", "").replace("https://", "")
@@ -134,7 +147,7 @@ def main():
         scheme="http",
         region="us-east-1"
     )
-    print("PyArrow S3 filesystem configured")
+    print("✓ PyArrow S3 filesystem configured")
     
     # Load and prepare data
     df = load_data()
@@ -144,11 +157,11 @@ def main():
     train_df, test_df = train_test_split(data_df, test_size=0.2, random_state=42)
     train_df, valid_df = train_test_split(train_df, test_size=0.2, random_state=42)
     
-    print(f"Data split: Train={len(train_df)}, Valid={len(valid_df)}, Test={len(test_df)}")
+    print(f"✓ Data split: Train={len(train_df)}, Valid={len(valid_df)}, Test={len(test_df)}")
     
     # Start MLflow experiment
     mlflow.set_experiment("xgboost-churn-prediction")
-    print(f"MLflow tracking URI: {MLFLOW_TRACKING_URI}")
+    print(f"✓ MLflow tracking URI: {MLFLOW_TRACKING_URI}")
     
     with mlflow.start_run(run_name="distributed_xgboost_training"):
         print("\n" + "-"*60)
@@ -169,12 +182,12 @@ def main():
             "random_state": 42
         }
         mlflow.log_params(params)
-        print("Parameters logged to MLflow")
+        print("✓ Parameters logged to MLflow")
         
         # Create Ray datasets for distributed training
         train_dataset = ray.data.from_pandas(train_df)
         valid_dataset = ray.data.from_pandas(valid_df)
-        print("Ray datasets created")
+        print("✓ Ray datasets created")
         
         # Configure distributed training with 2 workers
         print("\nStarting distributed XGBoost training...")
@@ -203,11 +216,11 @@ def main():
         
         # Execute distributed training
         result = trainer.fit()
-        print("Distributed training completed")
+        print("✓ Distributed training completed")
         
         # Get trained model using Ray's built-in method
         booster = XGBoostTrainer.get_model(result.checkpoint)
-        print("Model extracted from checkpoint")
+        print("✓ Model extracted from checkpoint")
         
         # Evaluate model on test set
         X_test = test_df.drop('target', axis=1)
@@ -217,7 +230,7 @@ def main():
         
         # Log metrics to MLflow
         mlflow.log_metrics(metrics)
-        print("Metrics logged to MLflow")
+        print("✓ Metrics logged to MLflow")
         
         # Log model to MLflow with registered model name
         print("Logging model to MLflow...")
@@ -226,7 +239,7 @@ def main():
             "model",
             registered_model_name="xgboost-churn-model"
         )
-        print("Model logged to MLflow artifact store")
+        print("✓ Model logged to MLflow artifact store")
         
         # Save model to MinIO for backup
         model_data = {'model': booster, 'label_encoders': label_encoders}
@@ -239,7 +252,7 @@ def main():
             Key=MODEL_OUTPUT_PATH,
             Body=model_buffer.getvalue()
         )
-        print("Model saved to MinIO")
+        print("✓ Model saved to MinIO")
         
         # Log MinIO artifact location to MLflow
         mlflow.log_param("minio_model_path", f"s3://{BUCKET_NAME}/{MODEL_OUTPUT_PATH}")
