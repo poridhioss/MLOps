@@ -364,6 +364,7 @@ resource "aws_instance" "mlflow_instance" {
               ExecStart=/home/mlflow-user/mlflow-env/bin/mlflow server \
                 --backend-store-uri postgresql://mlflow_user:mlflow_password@localhost/mlflow_db \
                 --default-artifact-root s3://ray-data/mlflow-artifacts \
+                --serve-artifacts \
                 --host 0.0.0.0 \
                 --port 5000
               Restart=always
