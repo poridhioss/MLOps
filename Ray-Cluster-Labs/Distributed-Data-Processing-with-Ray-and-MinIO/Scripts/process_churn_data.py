@@ -7,7 +7,7 @@ import urllib.request
 import boto3
 from botocore.client import Config
 
-# MinIO Configuration - Cross-namespace connectivity
+# MinIO Configuration
 MINIO_ENDPOINT = "http://<minio_private_ip>:9000"
 MINIO_ACCESS_KEY = "minioadmin"
 MINIO_SECRET_KEY = "minioadmin123"
@@ -37,27 +37,32 @@ urllib.request.urlretrieve(churn_url, "/tmp/churn.csv")
 ds = ray.data.read_csv("/tmp/churn.csv")
 print(f"Loaded {ds.count()} rows")
 
-# Data Processing Functions
+# Data Processing Function
 def clean_data(batch: pd.DataFrame) -> pd.DataFrame:
-    """Clean and prepare data"""
+    """Clean and prepare data for churn prediction"""
+    # Clean TotalCharges column
     batch['TotalCharges'] = pd.to_numeric(batch['TotalCharges'], errors='coerce')
     batch = batch.fillna(0)
-    batch['AvgMonthlyCharges'] = batch['TotalCharges'] / (batch['tenure'] + 1)
-    batch['IsHighValue'] = (batch['TotalCharges'] > batch['TotalCharges'].median()).astype(int)
+    
+    # Keep Churn column as-is for target variable
+    # Don't create derived features from TotalCharges (prevents data leakage)
+    
     return batch
 
-def filter_churned_customers(batch: pd.DataFrame) -> pd.DataFrame:
-    """Filter only churned customers"""
-    return batch[batch['Churn'] == 'Yes']
-
-# Process data
+# Process data - keep ALL customers (churned and not churned)
 print("Processing data...")
 cleaned_ds = ds.map_batches(clean_data, batch_format="pandas")
-churned_ds = cleaned_ds.map_batches(filter_churned_customers, batch_format="pandas")
 
 # Convert to Pandas DataFrame
-processed_data = churned_ds.to_pandas()
-print(f"Processed {len(processed_data)} churned customers")
+processed_data = cleaned_ds.to_pandas()
+print(f"Processed {len(processed_data)} total customers")
+
+# Calculate churn statistics
+churn_count = (processed_data['Churn'] == 'Yes').sum()
+churn_rate = (churn_count / len(processed_data)) * 100
+print(f"Churned customers: {churn_count}")
+print(f"Retained customers: {len(processed_data) - churn_count}")
+print(f"Churn rate: {churn_rate:.2f}%")
 
 # Convert to Parquet format
 table = pa.Table.from_pandas(processed_data)
@@ -74,6 +79,6 @@ try:
         Body=parquet_buffer.getvalue()
     )
     print(f"✓ Data uploaded to s3://{BUCKET_NAME}/{OUTPUT_PATH}/churned_customers.parquet")
-    print(f"✓ Churn rate: {(len(processed_data) / ds.count() * 100):.2f}%")
+    print(f"✓ Dataset ready for churn prediction training")
 except Exception as e:
     print(f"✗ Upload failed: {e}")
