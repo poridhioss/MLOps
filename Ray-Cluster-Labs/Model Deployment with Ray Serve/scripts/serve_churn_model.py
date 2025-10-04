@@ -96,7 +96,6 @@ class HealthResponse(BaseModel):
 
 # Ray Serve Deployment
 @serve.deployment(
-    num_replicas=3,
     ray_actor_options={
         "num_cpus": 1,
         "memory": 512 * 1024 * 1024  # 512MB per replica
@@ -104,7 +103,7 @@ class HealthResponse(BaseModel):
     autoscaling_config={
         "min_replicas": 2,
         "max_replicas": 5,
-        "target_num_ongoing_requests_per_replica": 10,
+        "target_ongoing_requests": 10,
     }
 )
 @serve.ingress(app)
