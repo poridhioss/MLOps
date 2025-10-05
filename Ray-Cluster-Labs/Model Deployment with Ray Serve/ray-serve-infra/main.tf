@@ -328,18 +328,3 @@ output "worker_private_ips" {
   description = "Private IPs of the K3s worker nodes"
   value       = aws_instance.k3s_workers[*].private_ip
 }
-
-output "ssh_command" {
-  description = "SSH command to connect to master node"
-  value       = "ssh -i ${var.ssh_key_name}.pem ubuntu@${aws_instance.k3s_master.public_ip}"
-}
-
-output "api_url" {
-  description = "Ray Serve API URL"
-  value       = "http://${aws_instance.k3s_master.public_ip}:30800"
-}
-
-output "docs_url" {
-  description = "Ray Serve API documentation (Swagger UI)"
-  value       = "http://${aws_instance.k3s_master.public_ip}:30800/docs"
-}
