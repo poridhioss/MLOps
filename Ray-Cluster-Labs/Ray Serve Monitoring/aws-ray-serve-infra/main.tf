@@ -139,14 +139,6 @@ resource "aws_security_group" "k3s_sg" {
     description = "NodePort services"
   }
 
-  # Prometheus (for Grafana instance and external access)
-  ingress {
-    from_port   = 9090
-    to_port     = 9090
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Prometheus"
-  }
 
   # Allow all traffic within security group
   ingress {
